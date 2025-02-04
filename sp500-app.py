@@ -18,10 +18,10 @@ st.sidebar.header('User Input Features')
 
 # Web scraping of S&P 500 data
 #
-@st.cache
+@st.cache_data
 def load_data():
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    html = pd.read_html(url, header = 0)
+    html = pd.read_html(url, header=0)
     df = html[0]
     return df
 
@@ -52,7 +52,7 @@ st.markdown(filedownload(df_selected_sector), unsafe_allow_html=True)
 # https://pypi.org/project/yfinance/
 
 data = yf.download(
-        tickers = list(df_selected_sector[:10].Symbol),
+        tickers = list(df_selected_sector[:30].Symbol),
         period = "ytd",
         interval = "1d",
         group_by = 'ticker',
@@ -64,19 +64,35 @@ data = yf.download(
 
 # Plot Closing Price of Query Symbol
 def price_plot(symbol):
-  df = pd.DataFrame(data[symbol].Close)
-  df['Date'] = df.index
-  plt.fill_between(df.Date, df.Close, color='skyblue', alpha=0.3)
-  plt.plot(df.Date, df.Close, color='skyblue', alpha=0.8)
-  plt.xticks(rotation=90)
-  plt.title(symbol, fontweight='bold')
-  plt.xlabel('Date', fontweight='bold')
-  plt.ylabel('Closing Price', fontweight='bold')
-  return st.pyplot()
+    try:
+        # Extract data for the symbol
+        df = data.xs(key=symbol, level=0, axis=1)
+        df = pd.DataFrame(df['Close'])
+        df['Date'] = df.index
 
-num_company = st.sidebar.slider('Number of Companies', 1, 5)
+        # Create a figure and axes
+        fig, ax = plt.subplots()
+        ax.fill_between(df.Date, df.Close, color='skyblue', alpha=0.3)
+        ax.plot(df.Date, df.Close, color='skyblue', alpha=0.8)
+        ax.set_xticks(df.Date[::10])  # Adjust tick spacing if too dense
+        ax.tick_params(axis='x', rotation=90)
+        ax.set_title(symbol, fontweight='bold')
+        ax.set_xlabel('Date', fontweight='bold')
+        ax.set_ylabel('Closing Price', fontweight='bold')
+
+        # Pass the figure to Streamlit
+        st.pyplot(fig)
+    except KeyError:
+        st.write(f"Data for {symbol} is not available.")
+
+num_company = st.sidebar.slider('Number of Companies', 1, 30)
 
 if st.button('Show Plots'):
     st.header('Stock Closing Price')
-    for i in list(df_selected_sector.Symbol)[:num_company]:
-        price_plot(i)
+    available_symbols = data.keys()  # Check available symbols
+    for symbol in list(df_selected_sector.Symbol)[:num_company]:
+        if symbol in available_symbols:  # Only plot if symbol exists in data
+            price_plot(symbol)
+        else:
+            st.write(f"No data available for {symbol}")
+
